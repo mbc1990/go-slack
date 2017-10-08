@@ -3,8 +3,8 @@ package main
 import "fmt"
 import "encoding/json"
 import "os"
-
-import "github.com/rgamba/evtwebsocket"
+import "log"
+import "strings"
 
 type Configuration struct {
 	Token string
@@ -21,37 +21,27 @@ func initConf() {
 	}
 }
 
-func startClient() {
-	conn := evtwebsocket.Conn{
-		// Fires when the connection is established
-		OnConnected: func(w *evtwebsocket.Conn) {
-			fmt.Println("Connected!")
-		},
-		// Fires when a new message arrives from the server
-		OnMessage: func(msg []byte, w *evtwebsocket.Conn) {
-			fmt.Printf("New message: %s\n", msg)
-		},
-		// Fires when an error occurs and connection is closed
-		OnError: func(err error) {
-			fmt.Printf("Error: %s\n", err.Error())
-			os.Exit(1)
-		},
-		// Ping interval in secs (optional)
-		PingIntervalSecs: 5,
-		// Ping message to send (optional)
-		PingMsg: []byte("PING"),
-	}
-
-	err := conn.Dial("ws://echo.websocket.org", "")
-	if err != nil {
-		panic(err)
-	}
-}
-
 func main() {
 	initConf()
-	go startClient()
 
-	// Block forever
-	select {}
+	// start a websocket-based Real Time API session
+	ws, id := slackConnect(Conf.Token)
+
+	for {
+		// read each incoming message
+		m, err := getMessage(ws)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// see if we're mentioned
+		if m.Type == "message" && strings.HasPrefix(m.Text, "<@"+id+">") {
+			fmt.Println(m)
+			// parts := strings.Fields(m.Text)
+			go func(m Message) {
+				m.Text = "hello"
+				postMessage(ws, m)
+			}(m)
+		}
+	}
 }
